@@ -1,0 +1,162 @@
+#!/bin/bash
+# Monitor https://yzb.ppsuc.edu.cn/sszs.htm for new updates
+# Sends notification via both PushPlus AND OpenClaw WeChat
+
+STATE_FILE="/tmp/sszs_ids.txt"
+PREV_FILE="/tmp/sszs_ids_prev.txt"
+
+# Step 1: Fetch current articles
+python3 << 'PYEOF'
+import json, re, urllib.request
+url = "https://yzb.ppsuc.edu.cn/sszs.htm"
+req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", errors="ignore")
+articles = []
+matches = re.findall(r'info/1008/(\d+)\.htm[^>]*title="([^"]*)"', html)
+dates = re.findall(r'(\d{4}-\d{2}-\d{2})', html)
+for i, (aid, title) in enumerate(matches):
+    date = dates[i] if i < len(dates) else ""
+    articles.append({"id": aid, "title": title.strip(), "date": date})
+with open("/tmp/sszs_ids.txt", "w") as f:
+    json.dump(articles, f, ensure_ascii=False)
+PYEOF
+
+# Step 2: Compare and send notification
+python3 << 'PYEOF'
+import json, os, urllib.request, subprocess, time
+
+TOKEN = "4b14ad2c8062439f804d3886e8a87d99"
+AUTH_CODE = "mfO5YSCg6Ll2"
+NEGATIVE_SCREEN_URL = "https://hiboard-claw-drcn.ai.dbankcloud.cn/distribution/message/cloud/claw/msg/upload"
+WECHAT_TARGET = "o9cq804V0DLhUk0YVzG5cPYl2huQ@im.wechat"
+
+with open("/tmp/sszs_ids.txt") as f:
+    current = json.load(f)
+
+def pushplus_send(title, body):
+    payload = json.dumps({"token": TOKEN, "title": title, "content": body, "template": "html"}, ensure_ascii=False)
+    req = urllib.request.Request("https://www.pushplus.plus/send", data=payload.encode(), headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(req)
+    print(f"PushPlus sent: {title}")
+
+def negative_screen_send(markdown, task_name):
+    """Push to HarmonyOS negative screen"""
+    task_data = {
+        "authCode": AUTH_CODE,
+        "msgContent": [{
+            "scheduleTaskId": "sszs_monitor_daily",
+            "scheduleTaskName": task_name,
+            "summary": f"{task_name}已完成",
+            "result": "任务已完成",
+            "content": markdown,
+            "source": "OpenClaw",
+            "taskFinishTime": int(time.time())
+        }]
+    }
+    try:
+        req = urllib.request.Request(NEGATIVE_SCREEN_URL,
+            data=json.dumps(task_data, ensure_ascii=False).encode(),
+            headers={"Content-Type": "application/json"})
+        resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        print(f"负一屏推送: {resp.get('desc', resp.get('code','OK'))}")
+    except Exception as e:
+        print(f"负一屏推送失败: {e}")
+
+def openclaw_send(msg):
+    try:
+        result = subprocess.run(
+            ["openclaw", "message", "send",
+             "--channel", "openclaw-weixin",
+             "--target", WECHAT_TARGET,
+             "--message", msg],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            print("OpenClaw sent successfully")
+        else:
+            print(f"OpenClaw send failed: {result.stderr}")
+    except Exception as e:
+        print(f"OpenClaw send error: {e}")
+
+if not os.path.exists("/tmp/sszs_ids_prev.txt"):
+    # First run
+    body = "<h3>硕士招生页面监控已启动</h3>"
+    body += "<p>从今天起每天18:00将推送更新状态。</p>"
+    body += f"<p>当前共 {len(current)} 条通知</p>"
+    if current:
+        body += f"<p>最近: {current[0]['date']} {current[0]['title'][:40]}</p>"
+    body += "<hr><a href='https://yzb.ppsuc.edu.cn/sszs.htm'>点击查看原文</a>"
+    pushplus_send("[监控] 公大研招网监控已启动", body)
+
+    # Push to negative screen
+    neg_md = "# 📢 公大研招网监控已启动\n\n"
+    neg_md += f"从今天起每天18:00将推送更新状态。\n\n"
+    neg_md += f"当前共 {len(current)} 条通知\n"
+    if current:
+        neg_md += f"\n最近: {current[0]['date']} {current[0]['title'][:40]}\n"
+    neg_md += "\n[查看原文](https://yzb.ppsuc.edu.cn/sszs.htm)"
+    negative_screen_send(neg_md, "公大研招网监控已启动")
+
+    msg = f"🕵️ 公大研招网监控已启动\n当前共 {len(current)} 条通知"
+    if current:
+        msg += f"\n最近: {current[0]['date']} {current[0]['title'][:40]}"
+    msg += "\nhttps://yzb.ppsuc.edu.cn/sszs.htm"
+    openclaw_send(msg)
+    print("FIRST_RUN - sent startup notification")
+else:
+    with open("/tmp/sszs_ids_prev.txt") as f:
+        prev = json.load(f)
+    cur_ids = {a["id"] for a in current}
+    prev_ids = {a["id"] for a in prev}
+    new_ids = cur_ids - prev_ids
+
+    if new_ids:
+        new_items = [a for a in current if a["id"] in new_ids]
+
+        # PushPlus (HTML)
+        items_html = "<ul>"
+        for item in new_items:
+            items_html += f"<li><strong>{item['date']}</strong>：{item['title']}</li>"
+        items_html += "</ul>"
+        body = f"<h3>硕士招生页面有新通知</h3><hr>{items_html}<hr><a href='https://yzb.ppsuc.edu.cn/sszs.htm'>点击查看原文</a>"
+        pushplus_send("[更新] 公大研招网有更新", body)
+
+        # Negative screen
+        neg_md = "# 📢 公大研招网有新通知\n\n"
+        for item in new_items:
+            neg_md += f"- **{item['date']}** {item['title']}\n"
+        neg_md += "\n[查看原文](https://yzb.ppsuc.edu.cn/sszs.htm)"
+        negative_screen_send(neg_md, "公大研招网有更新")
+
+        # OpenClaw (plain text)
+        msg = "🔔 公大研招网有新通知！\n"
+        for item in new_items:
+            msg += f"\n📄 {item['date']} {item['title']}"
+        msg += "\n\nhttps://yzb.ppsuc.edu.cn/sszs.htm"
+        openclaw_send(msg)
+        print("HAS_UPDATE - sent update notification")
+    else:
+        # No update - send both PushPlus and OpenClaw
+        body = "<h3>硕士招生页面今日暂无新通知</h3>"
+        if current:
+            body += f"<p>最近一条：{current[0]['date']} {current[0]['title'][:40]}</p>"
+        body += "<hr><a href='https://yzb.ppsuc.edu.cn/sszs.htm'>点击查看原文</a>"
+        pushplus_send("[每日] 公大研招网暂无更新", body)
+
+        # Negative screen
+        neg_md = "# ✅ 公大研招网暂无更新\n\n"
+        if current:
+            neg_md += f"最近一条: {current[0]['date']} {current[0]['title'][:40]}\n"
+        neg_md += "\n[查看原文](https://yzb.ppsuc.edu.cn/sszs.htm)"
+        negative_screen_send(neg_md, "公大研招网暂无更新")
+
+        msg = "🕵️ 公大研招网今日暂无新通知"
+        if current:
+            msg += f"\n最近一条：{current[0]['date']} {current[0]['title'][:40]}"
+        msg += "\nhttps://yzb.ppsuc.edu.cn/sszs.htm"
+        openclaw_send(msg)
+        print("NO_UPDATE - sent daily status via both channels")
+PYEOF
+
+# Step 3: Save state for next run
+cp "$STATE_FILE" "$PREV_FILE"

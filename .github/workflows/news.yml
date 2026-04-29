@@ -7,40 +7,41 @@ jobs:
   go:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          curl -sL "https://news.sina.com.cn/" -o /tmp/a.html
-          python3 -c "
+      - run: curl -sL "https://news.sina.com.cn/" -o /tmp/a.html
+      - run: python3 -c "
 import re
 with open('/tmp/a.html') as f: h=f.read()
 ts=set()
+bad=['书签','快捷','标准','智能','登录','注册','首页','排行','开奖']
 for m in re.findall(r'<a[^>]*>([^<]{8,60})</a>',h):
     t=m.strip()
-    if any(ord('\\u4e00')<=ord(c)<=ord('\\u9fff') for c in t) and len(t)>=6:
-        if not any(x in t for x in ['书签','快捷','标准','智能','登录','注册','首页','排行','开奖']):
-            ts.add(t)
-open('/tmp/c.txt','w').writelines(f'- {t}\\n' for t in list(ts)[:6])
+    if any(ord('\\u4e00')<=ord(c)<=ord('\\u9fff') for c in t) and len(t)>=6 and not any(x in t for x in bad):
+        ts.add(t)
+open('/tmp/c.txt','w').writelines('- '+t+chr(10) for t in list(ts)[:6])
 "
-          curl -sL "https://www.36kr.com/newsflashes" -H "User-Agent: Mozilla/5.0" -o /tmp/b.html
-          python3 -c "
+      - run: curl -sL "https://www.36kr.com/newsflashes" -H "User-Agent: Mozilla/5.0" -o /tmp/b.html
+      - run: python3 -c "
 import re
 with open('/tmp/b.html') as f: h=f.read()
 ts=set()
 for m in re.findall(r'<a[^>]*href=\"/newsflashes/[^\"]*\"[^>]*>([^<]{6,80})</a>',h):
     t=m.strip()
     if any(ord('\\u4e00')<=ord(c)<=ord('\\u9fff') for c in t): ts.add(t)
-open('/tmp/t.txt','w').writelines(f'- {t}\\n' for t in list(ts)[:4])
+open('/tmp/t.txt','w').writelines('- '+t+chr(10) for t in list(ts)[:4])
 "
-          curl -sL "https://feeds.npr.org/1001/rss.xml" -o /tmp/c.xml
-          python3 -c "
+      - run: curl -sL "https://feeds.npr.org/1001/rss.xml" -o /tmp/c.xml
+      - run: python3 -c "
 import re
 with open('/tmp/c.xml') as f: x=f.read()
 ts=[]
 for m in re.findall(r'<title>(.*?)</title>',x):
     t=m.strip().replace('&apos;',\"'\").replace('&amp;','&')
     if t and t!='NPR Topics: News' and len(t)>5: ts.append(t)
-open('/tmp/i.txt','w').writelines(f'- {t}\\n' for t in ts[:5])
+open('/tmp/i.txt','w').writelines('- '+t+chr(10) for t in ts[:5])
 "
+      - run: |
           CN=$(cat /tmp/c.txt 2>/dev/null || echo "-")
           INTL=$(cat /tmp/i.txt 2>/dev/null || echo "-")
           TECH=$(cat /tmp/t.txt 2>/dev/null || echo "-")
-          curl -s -X POST "https://www.pushplus.plus/send" -H "Content-Type: application/json" -d '{"token":"4b14ad2c8062439f804d3886e8a87d99","title":"🕐 早间新闻速报","content":"<h3>🕐 早间新闻速报</h3><hr><h4>🇨🇳 国内</h4>'"$CN"'<br><h4>🌍 国际</h4>'"$INTL"'<br><h4>📱 科技</h4>'"$TECH"'<br><hr>每天早八点 Poirot 为您播报 🕵️","template":"html"}'
+          MSG='{"token":"4b14ad2c8062439f804d3886e8a87d99","title":"🕐 早间新闻速报","content":"<h3>🕐 早间新闻速报</h3><hr><h4>🇨🇳 国内</h4>'"$CN"'<br><h4>🌍 国际</h4>'"$INTL"'<br><h4>📱 科技</h4>'"$TECH"'<br><hr>每天早八点 Poirot 为您播报 🕵️","template":"html"}'
+          curl -s -X POST "https://www.pushplus.plus/send" -H "Content-Type: application/json" -d "$MSG"

@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.token
+openclaw.json
+memory/*.md
+!memory/.gitkeep
+learnings/
+sessions/

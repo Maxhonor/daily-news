@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "skills": {
+    "self-improving-agent": {
+      "version": "3.0.18",
+      "installedAt": 1777356363205
+    },
+    "skill-vetter": {
+      "version": "1.0.0",
+      "installedAt": 1777357202260
+    },
+    "tavily": {
+      "version": "1.0.0",
+      "installedAt": 1777360742875
+    },
+    "humanizer": {
+      "version": "1.0.0",
+      "installedAt": 1777381202983
+    },
+    "find-skills-skill": {
+      "version": "1.0.0",
+      "installedAt": 1777381983322
+    },
+    "agent-browser-clawdbot": {
+      "version": "0.1.0",
+      "installedAt": 1777382222953
+    },
+    "excel-xlsx": {
+      "version": "1.0.2",
+      "installedAt": 1777382342932
+    },
+    "powerpoint-pptx": {
+      "version": "1.0.1",
+      "installedAt": 1777382403835
+    },
+    "cs-social-content": {
+      "version": "1.0.0",
+      "installedAt": 1777382883372
+    },
+    "nano-banana-pro": {
+      "version": "1.0.1",
+      "installedAt": 1777387563012
+    }
+  }
+}

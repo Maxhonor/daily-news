@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "plugins": {
+    "entries": {
+      "exec": {
+        "hosts": {
+          "sandbox": {
+            "security": {
+              "mode": "ask",
+              "allowlist": []
+            }
+          },
+          "host": {
+            "security": {
+              "mode": "allowlist",
+              "allowlist": [
+                "/mnt/c/Users/17932/Desktop/*"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

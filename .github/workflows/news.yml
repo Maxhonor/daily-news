@@ -9,3 +9,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: chmod +x script.sh && bash script.sh
+        env:
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}

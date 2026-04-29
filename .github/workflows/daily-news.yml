@@ -14,11 +14,11 @@ jobs:
 import re
 with open("/tmp/sina.html") as f: h = f.read()
 ts = set()
+bad = ["书签","快捷","标准","智能","登录","注册","首页","排行","开奖"]
 for m in re.findall(r'<a[^>]*>([^<]{8,60})</a>', h):
     t = m.strip()
-    if any("\u4e00" <= c <= "\u9fff" for c in t) and len(t) >= 6:
-        if not any(x in t for x in ["书签","快捷","标准","智能","登录","注册","首页","排行","开奖"]):
-            ts.add(t)
+    if any("\u4e00" <= c <= "\u9fff" for c in t) and len(t) >= 6 and not any(x in t for x in bad):
+        ts.add(t)
 with open("/tmp/cn.txt","w") as f:
     for t in list(ts)[:6]: f.write(f"- {t}\n")
 PYEOF

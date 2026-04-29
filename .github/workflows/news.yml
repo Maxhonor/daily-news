@@ -1,0 +1,46 @@
+name: Morning News
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sL "https://news.sina.com.cn/" -o /tmp/a.html
+          python3 -c "
+import re
+with open('/tmp/a.html') as f: h=f.read()
+ts=set()
+for m in re.findall(r'<a[^>]*>([^<]{8,60})</a>',h):
+    t=m.strip()
+    if any(ord('\u4e00')<=ord(c)<=ord('\u9fff') for c in t) and len(t)>=6:
+        if not any(x in t for x in ['\u4e66\u7b7e','\u5feb\u6377','\u6807\u51c6','\u767b\u5f55','\u6ce8\u518c','\u9996\u9875','\u6392\u884c','\u5f00\u5956']):
+            ts.add(t)
+open('/tmp/c.txt','w').writelines(f'- {t}\n' for t in list(ts)[:6])
+"
+          curl -sL "https://www.36kr.com/newsflashes" -H "User-Agent: Mozilla/5.0" -o /tmp/b.html
+          python3 -c "
+import re
+with open('/tmp/b.html') as f: h=f.read()
+ts=set()
+for m in re.findall(r'<a[^>]*href="/newsflashes/[^"]*"[^>]*>([^<]{6,80})</a>',h):
+    t=m.strip()
+    if any(ord('\u4e00')<=ord(c)<=ord('\u9fff') for c in t): ts.add(t)
+open('/tmp/t.txt','w').writelines(f'- {t}\n' for t in list(ts)[:4])
+"
+          curl -sL "https://feeds.npr.org/1001/rss.xml" -o /tmp/c.xml
+          python3 -c "
+import re
+with open('/tmp/c.xml') as f: x=f.read()
+ts=[]
+for m in re.findall(r'<title>(.*?)</title>',x):
+    t=m.strip().replace('&apos;',"'").replace('&amp;','&')
+    if t and t!='NPR Topics: News' and len(t)>5: ts.append(t)
+open('/tmp/i.txt','w').writelines(f'- {t}\n' for t in ts[:5])
+"
+          CN=$(cat /tmp/c.txt 2>/dev/null || echo "-")
+          INTL=$(cat /tmp/i.txt 2>/dev/null || echo "-")
+          TECH=$(cat /tmp/t.txt 2>/dev/null || echo "-")
+          curl -s -X POST "https://www.pushplus.plus/send" -H "Content-Type: application/json" -d '{"token":"4b14ad2c8062439f804d3886e8a87d99","title":"\U0001f550 \u65e9\u95f4\u65b0\u95fb\u901f\u62a5","content":"<h3>\U0001f550 \u65e9\u95f4\u65b0\u95fb\u901f\u62a5</h3><hr><h4>\U0001f1e8\U0001f1f3 \u56fd\u5185</h4>'$CN'<br><h4>\U0001f30d \u56fd\u9645</h4>'$INTL'<br><h4>\U0001f4f1 \u79d1\u6280</h4>'$TECH'<br><hr>\u6bcf\u5929\u65e9\u516b\u70b9 Poirot \u4e3a\u60a8\u64ad\u62a5 \U0001f575","template":"html"}'
